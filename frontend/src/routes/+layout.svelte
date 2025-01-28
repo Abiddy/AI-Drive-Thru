@@ -3,4 +3,8 @@
 	let { children } = $props();
 </script>
 
-{@render children()}
+<div class="min-h-screen bg-background">
+	<main class="container mx-auto p-4">
+		{@render children()}
+	</main>
+</div>
