@@ -1,9 +1,10 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
   import { onMount } from "svelte";
-  import toast from 'svelte-french-toast';
+  import { Toaster, toast } from 'svelte-french-toast';
   import { fade, scale } from 'svelte/transition';
   import { flip } from 'svelte/animate';
+  import { Beef, MemoryStick, CupSoda } from 'lucide-svelte';
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -17,29 +18,31 @@
   let loading = false;
   let error = "";
 
-  // Track previous values for animation
-  let prevBurgers = 0;
-  let prevFries = 0;
-  let prevDrinks = 0;
-  
-  $: {
-    // Trigger animation
-    const currentBurgers = orders.reduce((sum, order) => 
-      sum + (order.items.find(item => item.item === 'burgers')?.quantity || 0), 0);
-    const currentFries = orders.reduce((sum, order) => 
-      sum + (order.items.find(item => item.item === 'fries')?.quantity || 0), 0);
-    const currentDrinks = orders.reduce((sum, order) => 
-      sum + (order.items.find(item => item.item === 'drinks')?.quantity || 0), 0);
-    
-    if (currentBurgers !== prevBurgers) prevBurgers = currentBurgers;
-    if (currentFries !== prevFries) prevFries = currentFries;
-    if (currentDrinks !== prevDrinks) prevDrinks = currentDrinks;
-  }
+  console.log({orders});
+
+  $: totalBurgers = orders.reduce((sum, order) => 
+    sum + (order.items.find(item => 
+      item.item.toLowerCase() === 'burgers' || 
+      item.item.toLowerCase() === 'burger'
+    )?.quantity || 0), 0);
+
+  $: totalFries = orders.reduce((sum, order) => 
+    sum + (order.items.find(item => 
+      item.item.toLowerCase() === 'fries' || 
+      item.item.toLowerCase() === 'fry'
+    )?.quantity || 0), 0);
+
+  $: totalDrinks = orders.reduce((sum, order) => 
+    sum + (order.items.find(item => 
+      item.item.toLowerCase() === 'drinks' || 
+      item.item.toLowerCase() === 'drink'
+    )?.quantity || 0), 0);
 
   // Fetch all orders
   async function fetchOrders() {
     const response = await fetch(`${API_URL}/orders`);
     orders = await response.json();
+    console.log({orders});
   }
 
   // Process user request (new order or cancellation)
@@ -75,9 +78,9 @@
       await fetchOrders();
       
     } catch (e) {
-      error = e.message;
+      error = "Please enter a menu item (burgers, fries, or drinks) to add your order!";
       // Show error toast
-      toast.error(e.message, {
+      toast.error("Please enter a menu item (burgers, fries, or drinks) to add your order!", {
         duration: 3000,
         position: 'top-center'
       });
@@ -90,55 +93,51 @@
   onMount(fetchOrders);
 </script>
 
+<Toaster />
+
 <div class="max-w-2xl mx-auto space-y-8">
   <h1 class="text-3xl font-bold">Drive-thru AI Ordering System</h1>
   
   <!-- Order Stats -->
   <div class="grid grid-cols-3 gap-4">
     <!-- Total Burgers -->
-    <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow">
+    <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
+         in:scale={{ duration: 300 }} out:fade>
       <div class="flex flex-col items-center">
-        <div class="w-12 h-12 mb-2">
-          <svg class="w-full h-full text-orange-500" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M2 16h20v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm1-9h18a1 1 0 011 1v5H1V8a1 1 0 011-1zm9-3a5 5 0 015 5H7a5 5 0 015-5z"/>
-          </svg>
+        <div class="w-12 h-12 mb-2 text-orange-500">
+          <Beef size={48} />
         </div>
         <h2 class="text-xl font-semibold mb-2">Total Burgers</h2>
-        <p class="text-3xl font-bold">
-          {orders.reduce((sum, order) => 
-            sum + (order.items.find(item => item.item === 'burgers')?.quantity || 0), 0)}
+        <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
+          {totalBurgers}
         </p>
       </div>
     </div>
 
     <!-- Total Fries -->
-    <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow">
+    <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
+         in:scale={{ duration: 300 }} out:fade>
       <div class="flex flex-col items-center">
-        <div class="w-12 h-12 mb-2">
-          <svg class="w-full h-full text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M17 3a1 1 0 011 1v16a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1h10zm-7 3v12h4V6h-4z"/>
-          </svg>
+        <div class="w-12 h-12 mb-2 text-yellow-500">
+          <MemoryStick size={48} />
         </div>
         <h2 class="text-xl font-semibold mb-2">Total Fries</h2>
-        <p class="text-3xl font-bold">
-          {orders.reduce((sum, order) => 
-            sum + (order.items.find(item => item.item === 'fries')?.quantity || 0), 0)}
+        <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
+          {totalFries}
         </p>
       </div>
     </div>
 
     <!-- Total Drinks -->
-    <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow">
+    <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
+         in:scale={{ duration: 300 }} out:fade>
       <div class="flex flex-col items-center">
-        <div class="w-12 h-12 mb-2">
-          <svg class="w-full h-full text-blue-500" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-8 14h2v-4h4V7h-6v10z"/>
-          </svg>
+        <div class="w-12 h-12 mb-2 text-blue-500">
+          <CupSoda size={48} />
         </div>
         <h2 class="text-xl font-semibold mb-2">Total Drinks</h2>
-        <p class="text-3xl font-bold">
-          {orders.reduce((sum, order) => 
-            sum + (order.items.find(item => item.item === 'drinks')?.quantity || 0), 0)}
+        <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
+          {totalDrinks}
         </p>
       </div>
     </div>
@@ -151,7 +150,7 @@
       <input
         type="text"
         bind:value={userInput}
-        placeholder="I would like to order..."
+        placeholder="Order burgers, fries, or drinks..."
         class="flex-1 p-2 border rounded"
         on:keydown={(e) => e.key === "Enter" && handleSubmit()}
       />
@@ -160,7 +159,7 @@
       </Button>
     </div>
     {#if error}
-      <p class="text-red-500">{error}</p>
+      <p class="text-red-500">Please enter a menu item (burgers, fries, or drinks) to add your order!</p>
     {/if}
   </div>
 
@@ -171,8 +170,10 @@
       <p class="text-muted-foreground">No orders yet</p>
     {:else}
       <div class="space-y-4">
-        {#each orders as order}
-          <div class="bg-card p-4 rounded-lg shadow">
+        {#each orders as order (order.id)}
+          <div class="bg-card p-4 rounded-lg shadow"
+               in:fade={{ duration: 300 }}
+               animate:flip={{ duration: 300 }}>
             <h3 class="font-semibold">Order #{order.id}</h3>
             <ul class="mt-2">
               {#each order.items as item}

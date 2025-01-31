@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
+# from supabase import create_client, Client  # Commented out
 from pydantic import BaseModel
 from typing import List, Optional
 import json
@@ -7,23 +8,32 @@ import os
 import requests
 from dotenv import load_dotenv
 
-
 load_dotenv()
 app = FastAPI()
+
+# Initialize Supabase client
+# supabase: Client = create_client(    # Commented out
+#     os.getenv("SUPABASE_URL"),
+#     os.getenv("SUPABASE_KEY")
+# )
+
+# Use in-memory storage for now
+orders = {}
+order_counter = 1
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",  # Local frontend
-        "https://your-frontend-domain.vercel.app"  # Production frontend
+        "http://localhost:5173",
+        "https://your-frontend-domain.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Defining 3 data models for our Project
+# Data models
 class OrderItem(BaseModel):
     item: str
     quantity: int
@@ -36,10 +46,8 @@ class Order(BaseModel):
 class UserRequest(BaseModel):
     user_input: str
 
-# Storing orders in memory using a dict
-orders = {}
-order_counter = 1
 
+# Some input validations are added on the AI prompt.
 SYSTEM_PROMPT = """You are a drive-thru order processing assistant. Process customer orders and cancellation requests precisely.
 
 MENU ITEMS ONLY:
@@ -55,7 +63,7 @@ RULES:
 5. Allow user to cancel previous orders
 6. If no valid items remain after processing, return empty items list
 
-For orders, respond with JSON:
+For orders, respond with JSON, where item_name can only be either "burgers", "fries", or "drinks":
 {"type": "order", "items": [{"item": "item_name", "quantity": number}]}
 
 For cancellations, respond with JSON:
@@ -110,32 +118,31 @@ async def read_root():
 # GET route to get all orders
 @app.get("/orders")
 async def get_orders():
-    return list(orders.values())
+    # return supabase.table("orders").select("*").execute()  # Commented out
+    return list(orders.values())  # Use in-memory storage instead
 
 # POST route to process user requests
 @app.post("/process-request")
 async def process_request(request: UserRequest):
     try:
-        # Get structured response from model
         response = generate_response(request.user_input)
-        
         global order_counter
         
         if response["type"] == "order":
-            # Create new order
             order = Order(
                 id=order_counter,
                 items=[OrderItem(**item) for item in response["items"]],
                 total_items=sum(item["quantity"] for item in response["items"])
             )
-            orders[order_counter] = order
+            # result = supabase.table("orders").insert(order_data).execute()  # Commented out
+            orders[order_counter] = order  # Use in-memory storage
             order_counter += 1
             return {"message": "Order placed successfully", "order": order}
             
         elif response["type"] == "cancel":
-            # Cancel order
             order_id = response["order_id"]
-            if order_id in orders:
+            # result = supabase.table("orders").delete().eq("id", order_id).execute()  # Commented out
+            if order_id in orders:  # Use in-memory storage
                 del orders[order_id]
                 return {"message": f"Order #{order_id} cancelled successfully"}
             else:
