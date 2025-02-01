@@ -11,12 +11,6 @@ from dotenv import load_dotenv
 load_dotenv()
 app = FastAPI()
 
-# Initialize Supabase client
-# supabase: Client = create_client(    # Commented out
-#     os.getenv("SUPABASE_URL"),
-#     os.getenv("SUPABASE_KEY")
-# )
-
 # Use in-memory storage for now
 orders = {}
 order_counter = 1

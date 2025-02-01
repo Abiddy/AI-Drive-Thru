@@ -137,56 +137,8 @@
   {#await fetchUserOrders(user.id)}
     <p>Loading your orders...</p>
   {:then orders}
-    <!-- Your existing stats cards -->
-    <div class="grid grid-cols-3 gap-4">
-      <!-- Total Burgers -->
-      <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
-           in:scale={{ duration: 300 }} out:fade>
-        <div class="flex flex-col items-center">
-          <div class="w-12 h-12 mb-2 text-orange-500">
-            <Beef size={48} />
-          </div>
-          <h2 class="text-xl font-semibold mb-2">Total Burgers</h2>
-          <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
-            {totalBurgers}
-          </p>
-        </div>
-      </div>
 
-      <!-- Total Fries -->
-      <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
-           in:scale={{ duration: 300 }} out:fade>
-        <div class="flex flex-col items-center">
-          <div class="w-12 h-12 mb-2 text-yellow-500">
-            <MemoryStick size={48} />
-          </div>
-          <h2 class="text-xl font-semibold mb-2">Total Fries</h2>
-          <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
-            {totalFries}
-          </p>
-        </div>
-      </div>
 
-      <!-- Total Drinks -->
-      <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
-           in:scale={{ duration: 300 }} out:fade>
-        <div class="flex flex-col items-center">
-          <div class="w-12 h-12 mb-2 text-blue-500">
-            <CupSoda size={48} />
-          </div>
-          <h2 class="text-xl font-semibold mb-2">Total Drinks</h2>
-          <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
-            {totalDrinks}
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Your order form -->
-    <div>
-      <h2>Place Order or Cancel</h2>
-      <!-- Update your form to use submitOrder(user.id, userInput) -->
-    </div>
 
     <!-- Display orders -->
     <div>
