@@ -1,6 +1,5 @@
 <script lang="ts">
   import { Button } from "$lib/components/ui/button";
-  import { onMount } from "svelte";
   import { Toaster, toast } from 'svelte-french-toast';
   import { fade, scale } from 'svelte/transition';
   import { flip } from 'svelte/animate';
@@ -21,37 +20,39 @@
   let error = "";
   let userEmail = "";
 
-  console.log({orders});
+  // $: totalBurgers = orders.reduce((sum, order) => 
+  //   sum + (order.items.find(item => 
+  //     item.item.toLowerCase() === 'burgers' || 
+  //     item.item.toLowerCase() === 'burger'
+  //   )?.quantity || 0), 0);
 
-  $: totalBurgers = orders.reduce((sum, order) => 
-    sum + (order.items.find(item => 
-      item.item.toLowerCase() === 'burgers' || 
-      item.item.toLowerCase() === 'burger'
-    )?.quantity || 0), 0);
+  // $: totalFries = orders.reduce((sum, order) => 
+  //   sum + (order.items.find(item => 
+  //     item.item.toLowerCase() === 'fries' || 
+  //     item.item.toLowerCase() === 'fry'
+  //   )?.quantity || 0), 0);
 
-  $: totalFries = orders.reduce((sum, order) => 
-    sum + (order.items.find(item => 
-      item.item.toLowerCase() === 'fries' || 
-      item.item.toLowerCase() === 'fry'
-    )?.quantity || 0), 0);
-
-  $: totalDrinks = orders.reduce((sum, order) => 
-    sum + (order.items.find(item => 
-      item.item.toLowerCase() === 'drinks' || 
-      item.item.toLowerCase() === 'drink'
-    )?.quantity || 0), 0);
+  // $: totalDrinks = orders.reduce((sum, order) => 
+  //   sum + (order.items.find(item => 
+  //     item.item.toLowerCase() === 'drinks' || 
+  //     item.item.toLowerCase() === 'drink'
+  //   )?.quantity || 0), 0);
 
   // Fetch all orders
-  async function fetchOrders() {
-    const response = await fetch(`${API_URL}/orders`);
-    orders = await response.json();
-    console.log({orders});
+  // Add this function to fetch orders
+  async function fetchOrders(userId: string) {
+    try {
+      const response = await fetch(`${API_URL}/orders/${userId}`);
+      if (!response.ok) throw new Error('Failed to fetch orders');
+      orders = await response.json();
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    }
   }
 
   // Process user request (new order or cancellation)
-  async function handleSubmit() {
+  async function handleSubmit(userId: string) {
     if (!userInput.trim()) return;
-    
     loading = true;
     error = "";
     
@@ -61,7 +62,10 @@
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ user_input: userInput }),
+        body: JSON.stringify({ 
+          user_input: userInput,
+          user_id: userId
+        }),
       });
       
       const result = await response.json();
@@ -70,20 +74,17 @@
         throw new Error(result.detail || "Something went wrong");
       }
       
-      // Show success toast with the message from backend
       toast.success(result.message, {
         duration: 3000,
         position: 'top-center'
       });
       
-      // Clear input and refresh orders
       userInput = "";
-      await fetchOrders();
+      orders = await fetchUserOrders(userId);
       
     } catch (e) {
-      error = "Please enter a menu item (burgers, fries, or drinks) to add your order!";
-      // Show error toast
-      toast.error("Please enter a menu item (burgers, fries, or drinks) to add your order!", {
+      error = e.message;
+      toast.error(error, {
         duration: 3000,
         position: 'top-center'
       });
@@ -92,71 +93,39 @@
     }
   }
 
-  // Load orders when component mounts
-  onMount(async () => {
-    await fetchOrders();
-    const { user } = await auth();
-    if (user) {
-      userEmail = user.primaryEmailAddress?.emailAddress || "";
-    }
-  });
-
   async function fetchUserOrders(userId: string) {
-    const response = await fetch(`${API_URL}/orders/${userId}`);
-    const orders = await response.json();
-    return orders;
-  }
+  const response = await fetch(`${API_URL}/orders/${userId}`);
+  const orders = await response.json();
 
-  // When submitting an order, include the user_id
-  async function submitOrder(userId: string, userInput: string) {
-    const response = await fetch(`${API_URL}/process-request`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        user_input: userInput,
-        user_id: userId
-      })
-    });
-    // Refresh orders after submission
-    if (response.ok) {
-      orders = await fetchUserOrders(userId);
-    }
-  }
+  // Calculate totals once
+  const totals = {
+    burgers: orders.reduce((sum, order) => 
+      sum + (order.items.find(item => 
+        item.item.toLowerCase() === 'burgers' || 
+        item.item.toLowerCase() === 'burger'
+      )?.quantity || 0), 0),
+    
+    fries: orders.reduce((sum, order) => 
+      sum + (order.items.find(item => 
+        item.item.toLowerCase() === 'fries' || 
+        item.item.toLowerCase() === 'fry'
+      )?.quantity || 0), 0),
+    
+    drinks: orders.reduce((sum, order) => 
+      sum + (order.items.find(item => 
+        item.item.toLowerCase() === 'drinks' || 
+        item.item.toLowerCase() === 'drink'
+      )?.quantity || 0), 0)
+  };
+
+  return { orders, totals };
+}
+
 </script>
+
 
 <Toaster />
 
-<SignedIn let:user>
-  <div class="mb-8 text-center">
-    <h2 class="text-2xl font-semibold tracking-tight">Welcome {user.primaryEmailAddress?.emailAddress}!</h2>
-    <p class="text-muted-foreground">Your orders are displayed below</p>
-  </div>
-
-  {#await fetchUserOrders(user.id)}
-    <p>Loading your orders...</p>
-  {:then orders}
-
-
-
-    <!-- Display orders -->
-    <div>
-      <h2>Current Orders</h2>
-      {#each orders as order}
-        <div class="p-4 border rounded-lg mb-4">
-          <h3>Order #{order.id}</h3>
-          {#each order.items as item}
-            <p>{item.quantity}x {item.item}</p>
-          {/each}
-          <p class="text-muted-foreground">Total Items: {order.total_items}</p>
-        </div>
-      {/each}
-    </div>
-  {:catch error}
-    <p>Error loading orders: {error.message}</p>
-  {/await}
-</SignedIn>
 
 <SignedOut>
   <div class="mb-8 text-center">
@@ -165,7 +134,22 @@
   </div>
 </SignedOut>
 
+ <SignedIn let:user>
+  {#key user}
+  <div>
+  <div class="mb-8 text-center">
+    <h2 class="text-2xl font-semibold tracking-tight">Welcome {user.primaryEmailAddress?.emailAddress}!</h2>
+    <p class="text-muted-foreground">Your orders are displayed below</p>
+  </div>
+
 <div class="max-w-2xl mx-auto space-y-8">
+
+  
+  {#await fetchUserOrders(user.id)}
+  <p>Loading your orders...</p>
+{:then fetchedOrders}
+{#if fetchedOrders}
+{@const orders = fetchedOrders.orders}
   
   <!-- Order Stats -->
   <div class="grid grid-cols-3 gap-4">
@@ -178,7 +162,7 @@
         </div>
         <h2 class="text-xl font-semibold mb-2">Total Burgers</h2>
         <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
-          {totalBurgers}
+          {fetchedOrders.totals.burgers}
         </p>
       </div>
     </div>
@@ -192,7 +176,7 @@
         </div>
         <h2 class="text-xl font-semibold mb-2">Total Fries</h2>
         <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
-          {totalFries}
+          {fetchedOrders.totals.fries}
         </p>
       </div>
     </div>
@@ -206,11 +190,13 @@
         </div>
         <h2 class="text-xl font-semibold mb-2">Total Drinks</h2>
         <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
-          {totalDrinks}
+          {fetchedOrders.totals.drinks}
         </p>
       </div>
     </div>
   </div>
+
+ 
 
   <!-- Order Input -->
   <div class="space-y-4">
@@ -221,16 +207,14 @@
         bind:value={userInput}
         placeholder="Order burgers, fries, or drinks..."
         class="flex-1 p-2 border rounded"
-        on:keydown={(e) => e.key === "Enter" && handleSubmit()}
+        on:keydown={(e) => e.key === "Enter" && handleSubmit(user.id)}
       />
-      <Button on:click={handleSubmit} disabled={loading}>
+      <Button on:click={() => handleSubmit(user.id)} disabled={loading}>
         {loading ? "Processing..." : "Submit"}
       </Button>
     </div>
-    {#if error}
-      <p class="text-red-500">Please enter a menu item (burgers, fries, or drinks) to add your order!</p>
-    {/if}
   </div>
+
 
   <!-- Orders List -->
   <div>
@@ -257,4 +241,15 @@
       </div>
     {/if}
   </div>
+{/if}
+  {:catch error}
+    <p>Error loading orders: {error.message}</p>
+  {/await}
+
+
+
 </div>
+
+</div>
+{/key}
+</SignedIn>

@@ -7,9 +7,41 @@ import json
 import os
 import requests
 from dotenv import load_dotenv
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from contextlib import contextmanager
 
 load_dotenv()
 app = FastAPI()
+
+# Database connection
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+@contextmanager
+def get_db_connection():
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+# Initialize database
+def init_db():
+    with get_db_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS orders (
+                    id SERIAL PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    items JSONB NOT NULL,
+                    total_items INTEGER NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        conn.commit()
+
+# Call init_db at startup
+init_db()
 
 # Use in-memory storage for now
 orders = {}
@@ -36,9 +68,11 @@ class Order(BaseModel):
     id: int
     items: List[OrderItem]
     total_items: int
+    user_id: str
 
 class UserRequest(BaseModel):
     user_input: str
+    user_id: str
 
 
 # Some input validations are added on the AI prompt.
@@ -115,32 +149,66 @@ async def get_orders():
     # return supabase.table("orders").select("*").execute()  # Commented out
     return list(orders.values())  # Use in-memory storage instead
 
+@app.get("/orders/{user_id}")
+async def get_user_orders(user_id: str):
+    with get_db_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                "SELECT * FROM orders WHERE user_id = %s ORDER BY created_at DESC",
+                (user_id,)
+            )
+            return cur.fetchall()
+
 # POST route to process user requests
 @app.post("/process-request")
 async def process_request(request: UserRequest):
     try:
         response = generate_response(request.user_input)
-        global order_counter
         
         if response["type"] == "order":
-            order = Order(
-                id=order_counter,
-                items=[OrderItem(**item) for item in response["items"]],
-                total_items=sum(item["quantity"] for item in response["items"])
-            )
-            # result = supabase.table("orders").insert(order_data).execute()  # Commented out
-            orders[order_counter] = order  # Use in-memory storage
-            order_counter += 1
-            return {"message": "Order placed successfully", "order": order}
+            items = [OrderItem(**item) for item in response["items"]]
+            total_items = sum(item.quantity for item in items)
+            
+            with get_db_connection() as conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute("""
+                        INSERT INTO orders (user_id, items, total_items)
+                        VALUES (%s, %s, %s)
+                        RETURNING *
+                    """, (
+                        request.user_id,
+                        json.dumps([{"item": item.item, "quantity": item.quantity} for item in items]),
+                        total_items
+                    ))
+                    new_order = cur.fetchone()
+                    conn.commit()
+                    
+            return {"message": "Order placed successfully", "order": new_order}
             
         elif response["type"] == "cancel":
             order_id = response["order_id"]
-            # result = supabase.table("orders").delete().eq("id", order_id).execute()  # Commented out
-            if order_id in orders:  # Use in-memory storage
-                del orders[order_id]
-                return {"message": f"Order #{order_id} cancelled successfully"}
-            else:
-                return {"message": f"Order #{order_id} not found"}
+            
+            with get_db_connection() as conn:
+                with conn.cursor() as cur:
+                    # First verify the order belongs to the user
+                    cur.execute(
+                        "SELECT id FROM orders WHERE id = %s AND user_id = %s",
+                        (order_id, request.user_id)
+                    )
+                    if not cur.fetchone():
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"Order #{order_id} not found or doesn't belong to you"
+                        )
+                    
+                    # Delete the order
+                    cur.execute(
+                        "DELETE FROM orders WHERE id = %s AND user_id = %s",
+                        (order_id, request.user_id)
+                    )
+                    conn.commit()
+                    
+            return {"message": f"Order #{order_id} cancelled successfully"}
                 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
