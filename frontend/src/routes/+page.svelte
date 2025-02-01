@@ -7,7 +7,6 @@
   import { Beef, MemoryStick, CupSoda } from 'lucide-svelte';
   import SignedIn from 'clerk-sveltekit/client/SignedIn.svelte';
   import SignedOut from 'clerk-sveltekit/client/SignedOut.svelte';
-  import { page } from "$app/stores";
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
