@@ -5,6 +5,9 @@
   import { fade, scale } from 'svelte/transition';
   import { flip } from 'svelte/animate';
   import { Beef, MemoryStick, CupSoda } from 'lucide-svelte';
+  import SignedIn from 'clerk-sveltekit/client/SignedIn.svelte';
+  import SignedOut from 'clerk-sveltekit/client/SignedOut.svelte';
+  import { page } from "$app/stores";
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -17,6 +20,7 @@
   let userInput = "";
   let loading = false;
   let error = "";
+  let userEmail = "";
 
   console.log({orders});
 
@@ -90,13 +94,127 @@
   }
 
   // Load orders when component mounts
-  onMount(fetchOrders);
+  onMount(async () => {
+    await fetchOrders();
+    const { user } = await auth();
+    if (user) {
+      userEmail = user.primaryEmailAddress?.emailAddress || "";
+    }
+  });
+
+  async function fetchUserOrders(userId: string) {
+    const response = await fetch(`${API_URL}/orders/${userId}`);
+    const orders = await response.json();
+    return orders;
+  }
+
+  // When submitting an order, include the user_id
+  async function submitOrder(userId: string, userInput: string) {
+    const response = await fetch(`${API_URL}/process-request`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_input: userInput,
+        user_id: userId
+      })
+    });
+    // Refresh orders after submission
+    if (response.ok) {
+      orders = await fetchUserOrders(userId);
+    }
+  }
 </script>
 
 <Toaster />
 
+<SignedIn let:user>
+  <div class="mb-8 text-center">
+    <h2 class="text-2xl font-semibold tracking-tight">Welcome {user.primaryEmailAddress?.emailAddress}!</h2>
+    <p class="text-muted-foreground">Your orders are displayed below</p>
+  </div>
+
+  {#await fetchUserOrders(user.id)}
+    <p>Loading your orders...</p>
+  {:then orders}
+    <!-- Your existing stats cards -->
+    <div class="grid grid-cols-3 gap-4">
+      <!-- Total Burgers -->
+      <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
+           in:scale={{ duration: 300 }} out:fade>
+        <div class="flex flex-col items-center">
+          <div class="w-12 h-12 mb-2 text-orange-500">
+            <Beef size={48} />
+          </div>
+          <h2 class="text-xl font-semibold mb-2">Total Burgers</h2>
+          <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
+            {totalBurgers}
+          </p>
+        </div>
+      </div>
+
+      <!-- Total Fries -->
+      <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
+           in:scale={{ duration: 300 }} out:fade>
+        <div class="flex flex-col items-center">
+          <div class="w-12 h-12 mb-2 text-yellow-500">
+            <MemoryStick size={48} />
+          </div>
+          <h2 class="text-xl font-semibold mb-2">Total Fries</h2>
+          <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
+            {totalFries}
+          </p>
+        </div>
+      </div>
+
+      <!-- Total Drinks -->
+      <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
+           in:scale={{ duration: 300 }} out:fade>
+        <div class="flex flex-col items-center">
+          <div class="w-12 h-12 mb-2 text-blue-500">
+            <CupSoda size={48} />
+          </div>
+          <h2 class="text-xl font-semibold mb-2">Total Drinks</h2>
+          <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
+            {totalDrinks}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Your order form -->
+    <div>
+      <h2>Place Order or Cancel</h2>
+      <!-- Update your form to use submitOrder(user.id, userInput) -->
+    </div>
+
+    <!-- Display orders -->
+    <div>
+      <h2>Current Orders</h2>
+      {#each orders as order}
+        <div class="p-4 border rounded-lg mb-4">
+          <h3>Order #{order.id}</h3>
+          {#each order.items as item}
+            <p>{item.quantity}x {item.item}</p>
+          {/each}
+          <p class="text-muted-foreground">Total Items: {order.total_items}</p>
+        </div>
+      {/each}
+    </div>
+  {:catch error}
+    <p>Error loading orders: {error.message}</p>
+  {/await}
+</SignedIn>
+
+<SignedOut>
+  <div class="mb-8 text-center">
+    <h2 class="text-2xl font-semibold tracking-tight">Welcome to AI Drive-Thru</h2>
+    <p class="text-muted-foreground">Sign in to save and track your orders</p>
+  </div>
+</SignedOut>
+
 <div class="max-w-2xl mx-auto space-y-8">
-  <h1 class="text-3xl font-bold">Drive-thru AI Ordering System</h1>
   
   <!-- Order Stats -->
   <div class="grid grid-cols-3 gap-4">
