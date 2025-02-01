@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Body, Depends
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 # from supabase import create_client, Client  # Commented out
 from pydantic import BaseModel
@@ -7,28 +7,9 @@ import json
 import os
 import requests
 from dotenv import load_dotenv
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
-from models import Base, Order
 
 load_dotenv()
 app = FastAPI()
-
-DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base.metadata.create_all(bind=engine)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # Initialize Supabase client
 # supabase: Client = create_client(    # Commented out
@@ -140,24 +121,22 @@ async def get_orders():
     # return supabase.table("orders").select("*").execute()  # Commented out
     return list(orders.values())  # Use in-memory storage instead
 
+# POST route to process user requests
 @app.post("/process-request")
-async def process_request(request: dict, db: Session = Depends(get_db)):
-    user_id = request.get("user_id")
+async def process_request(request: UserRequest):
     try:
-        response = generate_response(request["user_input"])
+        response = generate_response(request.user_input)
         global order_counter
         
         if response["type"] == "order":
             order = Order(
-                user_id=user_id,
+                id=order_counter,
                 items=[OrderItem(**item) for item in response["items"]],
                 total_items=sum(item["quantity"] for item in response["items"])
             )
             # result = supabase.table("orders").insert(order_data).execute()  # Commented out
             orders[order_counter] = order  # Use in-memory storage
             order_counter += 1
-            db.add(order)
-            db.commit()
             return {"message": "Order placed successfully", "order": order}
             
         elif response["type"] == "cancel":
@@ -171,11 +150,6 @@ async def process_request(request: dict, db: Session = Depends(get_db)):
                 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/orders/{user_id}")
-async def get_user_orders(user_id: str, db: Session = Depends(get_db)):
-    orders = db.query(Order).filter(Order.user_id == user_id).all()
-    return orders
 
 if __name__ == "__main__":
     import uvicorn
