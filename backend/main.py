@@ -35,6 +35,7 @@ def init_db():
                     user_id TEXT NOT NULL,
                     items JSONB NOT NULL,
                     total_items INTEGER NOT NULL,
+                    order_number INTEGER NOT NULL,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -171,14 +172,24 @@ async def process_request(request: UserRequest):
             
             with get_db_connection() as conn:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    # First, get the current max order number for this user
                     cur.execute("""
-                        INSERT INTO orders (user_id, items, total_items)
-                        VALUES (%s, %s, %s)
+                        SELECT COALESCE(MAX(order_number), 0) + 1 as next_order_number
+                        FROM orders 
+                        WHERE user_id = %s
+                    """, (request.user_id,))
+                    next_order_number = cur.fetchone()['next_order_number']
+                    
+                    # Insert new order with the user-specific order number
+                    cur.execute("""
+                        INSERT INTO orders (user_id, items, total_items, order_number)
+                        VALUES (%s, %s, %s, %s)
                         RETURNING *
                     """, (
                         request.user_id,
                         json.dumps([{"item": item.item, "quantity": item.quantity} for item in items]),
-                        total_items
+                        total_items,
+                        next_order_number
                     ))
                     new_order = cur.fetchone()
                     conn.commit()
@@ -213,6 +224,36 @@ async def process_request(request: UserRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+
+    return list(anonymous_orders.values())
+
+    try:
+        response = generate_response(request.user_input)
+        
+        if response["type"] == "order":
+            items = [OrderItem(**item) for item in response["items"]]
+            total_items = sum(item.quantity for item in items)
+            
+            # Create anonymous order without user_id
+            order = AnonymousOrder(
+                id=len(orders) + 1,  # Simple counter for demo
+                items=items,
+                total_items=total_items
+            )
+            
+            return {
+                "message": "Order processed (not saved - please sign in to save orders)",
+                "order": order.dict()
+            }
+            
+        elif response["type"] == "cancel":
+            return {
+                "message": "Cannot cancel orders when not signed in. Please sign in to manage orders."
+            }
+                
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))    
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
