@@ -88,7 +88,7 @@ RULES:
 1. Only accept orders for menu items listed above
 2. Ignore any non-menu items in the request
 3. If quantity is 0 or negative, do not include that item
-4. For cancellations, extract the order ID number
+4. For cancellations, extract the order_number from phrases like "cancel order 5" or "cancel #5"
 5. Allow user to cancel previous orders
 6. If no valid items remain after processing, return empty items list
 
@@ -96,7 +96,7 @@ For orders, respond with JSON, where item_name can only be either "burgers", "fr
 {"type": "order", "items": [{"item": "item_name", "quantity": number}]}
 
 For cancellations, respond with JSON:
-{"type": "cancel", "order_id": number}
+{"type": "cancel", "order_number": number}
 
 Respond with valid JSON only."""
 
@@ -197,63 +197,35 @@ async def process_request(request: UserRequest):
             return {"message": "Order placed successfully", "order": new_order}
             
         elif response["type"] == "cancel":
-            order_id = response["order_id"]
+            order_number = response["order_number"]
             
             with get_db_connection() as conn:
                 with conn.cursor() as cur:
                     # First verify the order belongs to the user
                     cur.execute(
-                        "SELECT id FROM orders WHERE id = %s AND user_id = %s",
-                        (order_id, request.user_id)
+                        "SELECT id FROM orders WHERE order_number = %s AND user_id = %s",
+                        (order_number, request.user_id)
                     )
                     if not cur.fetchone():
                         raise HTTPException(
                             status_code=404,
-                            detail=f"Order #{order_id} not found or doesn't belong to you"
+                            detail=f"Order #{order_number} not found or doesn't belong to you"
                         )
                     
                     # Delete the order
                     cur.execute(
-                        "DELETE FROM orders WHERE id = %s AND user_id = %s",
-                        (order_id, request.user_id)
+                        "DELETE FROM orders WHERE order_number = %s AND user_id = %s",
+                        (order_number, request.user_id)
                     )
                     conn.commit()
                     
-            return {"message": f"Order #{order_id} cancelled successfully"}
+            return {"message": f"Order #{order_number} cancelled successfully"}
                 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 
-    return list(anonymous_orders.values())
-
-    try:
-        response = generate_response(request.user_input)
-        
-        if response["type"] == "order":
-            items = [OrderItem(**item) for item in response["items"]]
-            total_items = sum(item.quantity for item in items)
-            
-            # Create anonymous order without user_id
-            order = AnonymousOrder(
-                id=len(orders) + 1,  # Simple counter for demo
-                items=items,
-                total_items=total_items
-            )
-            
-            return {
-                "message": "Order processed (not saved - please sign in to save orders)",
-                "order": order.dict()
-            }
-            
-        elif response["type"] == "cancel":
-            return {
-                "message": "Cannot cancel orders when not signed in. Please sign in to manage orders."
-            }
-                
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))    
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
