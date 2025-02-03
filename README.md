@@ -4,20 +4,35 @@ An AI-powered **drive-thru ordering system** that processes natural language ord
 
 ---
 
+# Live Application Link: [AI Drive-Thru System](https://appealing-determination-production.up.railway.app/)
+
 ## 🎥 Demo  
 ![ScreenRecording2025-01-28at11 29 18AM-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/9d3767ac-83a6-48e0-a820-936136641784)
 
 ---
 
 ## ✨ Features  
+✅ **Live Application**  
 ✅ **Natural language order processing**  
 ✅ **Real-time order tracking**  
 ✅ **Order cancellation support**  
-✅ **Interactive stats display** 
+✅ **Interactive stats display**
+✅ **Multi-tenant architecture**
+✅ **User authentication & authorization**
+✅ **PostgreSQL database with migrations**
+✅ **Input validation & error handling**
+✅ **API documentation (Swagger UI on /docs)**
+
+## 🔒 Security Features
+- JWT-based authentication
+- Password hashing
+- Rate limiting
+- Input sanitization
+- CORS protection
 
 ---
 
-## 🛠 Backend Setup  
+## 🛠 Backend Local Setup  
 
 1. **Navigate to the backend directory**  
    ```bash
@@ -28,7 +43,7 @@ An AI-powered **drive-thru ordering system** that processes natural language ord
    echo "TOGETHER_API_KEY=your_api_key_here" > .env
    uvicorn main:app --reload
    
-## 🛠 Fronted Setup  
+## 🛠 Fronted Local Setup  
 
 2. **Navigate to the frontend directory**  
    ```bash
@@ -40,6 +55,10 @@ An AI-powered **drive-thru ordering system** that processes natural language ord
     
    # Run the development server
    npm run dev
+
+   # You will need to create a .env file in the frontend directory with the following variables:
+   VITE_API_URL=http://localhost:8000 
+   Clerk Keys for authentication
 
 
 
