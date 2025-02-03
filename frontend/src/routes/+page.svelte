@@ -17,40 +17,91 @@
     order_number: number;
   }>>([]);
 
-  // Subscribe to the store
-  let orders: any;
-  ordersStore.subscribe(value => {
-    orders = value;
+  const totalsStore = writable({
+    burgers: 0,
+    fries: 0,
+    drinks: 0
   });
+
+  // Subscribe to the store
+  $: orders = $ordersStore;  // Reactive declaration
+
+  $: {
+  console.log('Server loaded data:', data.initialOrders);
+  console.log('Current orders:', orders);
+  console.log('Current totals:', $totalsStore);
+}
   
   let userInput = "";
   let loading = false;
-  let error = "";
-  let userEmail = "";
-  let fetchedOrders: any;
 
-  $: totalBurgers = orders.reduce((sum, order) => 
-    sum + (order.items.find(item => 
-      item.item.toLowerCase() === 'burgers' || 
-      item.item.toLowerCase() === 'burger'
-    )?.quantity || 0), 0);
+  // Update totals whenever orders change
+// Subscribe to the store and update totals
+$: if (orders && orders.length > 0) {
+  const newTotals = {
+    burgers: orders.reduce((sum, order) => {
+      const burgerItem = order.items.find(item => 
+        item.item.toLowerCase() === 'burgers');
+      return sum + (burgerItem?.quantity || 0);
+    }, 0),
+    
+    fries: orders.reduce((sum, order) => {
+      const friesItem = order.items.find(item => 
+        item.item.toLowerCase() === 'fries');
+      return sum + (friesItem?.quantity || 0);
+    }, 0),
+    
+    drinks: orders.reduce((sum, order) => {
+      const drinkItem = order.items.find(item => 
+        item.item.toLowerCase() === 'drinks');
+      return sum + (drinkItem?.quantity || 0);
+    }, 0)
+  };
+  
+  console.log('Setting new totals:', newTotals);
+  totalsStore.set(newTotals);
+}
 
-  $: totalFries = orders.reduce((sum, order) => 
-    sum + (order.items.find(item => 
-      item.item.toLowerCase() === 'fries' || 
-      item.item.toLowerCase() === 'fry'
-    )?.quantity || 0), 0);
+export let data;
 
-  $: totalDrinks = orders.reduce((sum, order) => 
-    sum + (order.items.find(item => 
-      item.item.toLowerCase() === 'drinks' || 
-      item.item.toLowerCase() === 'drink'
-    )?.quantity || 0), 0);
+// Initialize stores with server-loaded data
+$: {
+  if (data.initialOrders) {
+    const ordersData = Array.isArray(data.initialOrders) 
+      ? data.initialOrders 
+      : data.initialOrders.orders || [];
+      
+    console.log('Setting initial orders:', ordersData);
+    ordersStore.set(ordersData);
+    
+    // Calculate initial totals immediately
+    const initialTotals = {
+      burgers: ordersData.reduce((sum, order) => {
+        const burgerItem = order.items.find(item => 
+          item.item.toLowerCase() === 'burgers');
+        return sum + (burgerItem?.quantity || 0);
+      }, 0),
+      
+      fries: ordersData.reduce((sum, order) => {
+        const friesItem = order.items.find(item => 
+          item.item.toLowerCase() === 'fries');
+        return sum + (friesItem?.quantity || 0);
+      }, 0),
+      
+      drinks: ordersData.reduce((sum, order) => {
+        const drinkItem = order.items.find(item => 
+          item.item.toLowerCase() === 'drinks');
+        return sum + (drinkItem?.quantity || 0);
+      }, 0)
+    };
+    
+    console.log('Setting initial totals:', initialTotals);
+    totalsStore.set(initialTotals);
+  }
+}
 
 
-
-  // API CALLS FOR SIGNED IN USER
-  // Process user request (new order or cancellation)
+  // API CALL FUNCTIONS FOR SIGNED IN USER
   async function handleSubmit(userId: string) {
     if (!userInput.trim()) return;
     
@@ -67,14 +118,13 @@
 
       if (!response.ok) throw new Error('Failed to process order');
       
+      const result = await response.json();
       userInput = "";
-      toast.success('Order placed successfully');
+      toast.success(result.message);
       
-      // Force component to re-fetch orders
-      setTimeout(async () => {
-        const newOrders = await fetchUserOrders(userId);
-        ordersStore.set(newOrders.orders);
-      }, 5);
+      // Update orders store directly
+      const newOrders = await fetchUserOrders(userId);
+      ordersStore.update(() => newOrders.orders);
       
     } catch (e) {
       toast.error('Failed to process order');
@@ -87,28 +137,8 @@
     const response = await fetch(`${API_URL}/orders/${userId}`);
     const orders = await response.json();
     
-    // Calculate totals once
-    const totals = {
-      burgers: orders.reduce((sum, order) => 
-        sum + (order.items.find(item => 
-          item.item.toLowerCase() === 'burgers' || 
-          item.item.toLowerCase() === 'burger'
-        )?.quantity || 0), 0),
-        
-      fries: orders.reduce((sum, order) => 
-        sum + (order.items.find(item => 
-          item.item.toLowerCase() === 'fries' || 
-          item.item.toLowerCase() === 'fry'
-        )?.quantity || 0), 0),
-        
-      drinks: orders.reduce((sum, order) => 
-        sum + (order.items.find(item => 
-          item.item.toLowerCase() === 'drinks' || 
-          item.item.toLowerCase() === 'drink'
-        )?.quantity || 0), 0)
-    };
     
-    return { orders, totals };
+    return { orders };
   }
 
 </script>
@@ -129,109 +159,99 @@
 <!-- Signed In UI -->
 <SignedIn let:user>
   {#if user}
-    {#key $ordersStore}
     <div class="mb-8 text-center">
       <h2 class="text-2xl font-semibold tracking-tight">Welcome {user.primaryEmailAddress?.emailAddress}!</h2>
       <p class="text-muted-foreground">Your orders are displayed below</p>
     </div>
 
     <div class="max-w-2xl mx-auto space-y-8">
-      {#await fetchUserOrders(user.id)}
-        <p>Loading your orders...</p>
-      {:then orders}
-        {#key orders}
-          <!-- Order Stats -->
-          <div class="grid grid-cols-3 gap-4">
-            <!-- Total Burgers -->
-            <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
-                 in:scale={{ duration: 300 }} out:fade>
-              <div class="flex flex-col items-center">
-                <div class="w-12 h-12 mb-2 text-orange-500">
-                  <Beef size={48} />
-                </div>
-                <h2 class="text-xl font-semibold mb-2">Total Burgers</h2>
-                <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
-                  {orders.totals.burgers}
-                </p>
-              </div>
+      <!-- Order Stats -->
+      <div class="grid grid-cols-3 gap-4">
+        <!-- Total Burgers -->
+        <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
+             in:scale={{ duration: 300 }} out:fade>
+          <div class="flex flex-col items-center">
+            <div class="w-12 h-12 mb-2 text-orange-500">
+              <Beef size={48} />
             </div>
-
-            <!-- Total Fries -->
-            <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
-                 in:scale={{ duration: 300 }} out:fade>
-              <div class="flex flex-col items-center">
-                <div class="w-12 h-12 mb-2 text-yellow-500">
-                  <MemoryStick size={48} />
-                </div>
-                <h2 class="text-xl font-semibold mb-2">Total Fries</h2>
-                <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
-                  {orders.totals.fries}
-                </p>
-              </div>
-            </div>
-
-            <!-- Total Drinks -->
-            <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
-                 in:scale={{ duration: 300 }} out:fade>
-              <div class="flex flex-col items-center">
-                <div class="w-12 h-12 mb-2 text-blue-500">
-                  <CupSoda size={48} />
-                </div>
-                <h2 class="text-xl font-semibold mb-2">Total Drinks</h2>
-                <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
-                  {orders.totals.drinks}
-                </p>
-              </div>
-            </div>
+            <h2 class="text-xl font-semibold mb-2">Total Burgers</h2>
+            <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
+              {$totalsStore.burgers}
+            </p>
           </div>
+        </div>
 
-          <!-- Order Input -->
+        <!-- Total Fries -->
+        <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
+             in:scale={{ duration: 300 }} out:fade>
+          <div class="flex flex-col items-center">
+            <div class="w-12 h-12 mb-2 text-yellow-500">
+              <MemoryStick size={48} />
+            </div>
+            <h2 class="text-xl font-semibold mb-2">Total Fries</h2>
+            <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
+              {$totalsStore.fries}
+            </p>
+          </div>
+        </div>
+
+        <!-- Total Drinks -->
+        <div class="bg-card p-4 rounded-lg shadow hover:shadow-lg transition-shadow"
+             in:scale={{ duration: 300 }} out:fade>
+          <div class="flex flex-col items-center">
+            <div class="w-12 h-12 mb-2 text-blue-500">
+              <CupSoda size={48} />
+            </div>
+            <h2 class="text-xl font-semibold mb-2">Total Drinks</h2>
+            <p class="text-3xl font-bold" in:scale={{ duration: 300 }}>
+              {$totalsStore.drinks}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Order Input -->
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold">Place Order or Cancel</h2>
+        <div class="flex gap-2">
+          <input
+            type="text"
+            bind:value={userInput}
+            placeholder="Order burgers, fries, or drinks..."
+            class="flex-1 p-2 border rounded"
+            on:keydown={(e) => e.key === "Enter" && handleSubmit(user.id)}
+          />
+          <Button on:click={() => handleSubmit(user.id)} disabled={loading}>
+            {loading ? "Processing..." : "Submit"}
+          </Button>
+        </div>
+      </div>
+
+      <!-- Orders List -->
+      <div>
+        <h2 class="text-xl font-semibold mb-4">Current Orders - {$ordersStore.length}</h2>
+        {#if $ordersStore.length === 0}
+          <p class="text-muted-foreground">No orders yet</p>
+        {:else}
           <div class="space-y-4">
-            <h2 class="text-xl font-semibold">Place Order or Cancel</h2>
-            <div class="flex gap-2">
-              <input
-                type="text"
-                bind:value={userInput}
-                placeholder="Order burgers, fries, or drinks..."
-                class="flex-1 p-2 border rounded"
-                on:keydown={(e) => e.key === "Enter" && handleSubmit(user.id)}
-              />
-              <Button on:click={() => handleSubmit(user.id)} disabled={loading}>
-                {loading ? "Processing..." : "Submit"}
-              </Button>
-            </div>
-          </div>
-
-          <!-- Orders List -->
-          <div>
-            <h2 class="text-xl font-semibold mb-4">Current Orders - {orders.orders.length}</h2>
-            {#if orders.orders.length === 0}
-              <p class="text-muted-foreground">No orders yet</p>
-            {:else}
-              <div class="space-y-4">
-                {#each orders.orders as order (order.id)}
-                  <div class="bg-card p-4 rounded-lg shadow"
-                       in:fade={{ duration: 300 }}
-                       animate:flip={{ duration: 300 }}>
-                    <h3 class="font-semibold">Order #{order.order_number}</h3>
-                    <ul class="mt-2">
-                      {#each order.items as item}
-                        <li>{item.quantity}x {item.item}</li>
-                      {/each}
-                    </ul>
-                    <p class="mt-2 text-sm text-muted-foreground">
-                      Total Items: {order.total_items}
-                    </p>
-                  </div>
-                {/each}
+            {#each $ordersStore as order (order.id)}
+              <div class="bg-card p-4 rounded-lg shadow"
+                   in:fade={{ duration: 300 }}
+                   animate:flip={{ duration: 300 }}>
+                <h3 class="font-semibold">Order #{order.order_number}</h3>
+                <ul class="mt-2">
+                  {#each order.items as item}
+                    <li>{item.quantity}x {item.item}</li>
+                  {/each}
+                </ul>
+                <p class="mt-2 text-sm text-muted-foreground">
+                  Total Items: {order.total_items}
+                </p>
               </div>
-            {/if}
+            {/each}
           </div>
-        {/key}
-      {:catch error}
-        <p>Error loading orders: {error.message}</p>
-      {/await}
+        {/if}
+      </div>
     </div>
-    {/key}
   {/if}
 </SignedIn>
