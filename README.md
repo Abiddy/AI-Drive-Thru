@@ -7,7 +7,8 @@ An AI-powered **drive-thru ordering system** that processes natural language ord
 # Live Application Link: [AI Drive-Thru System](https://appealing-determination-production.up.railway.app/)
 
 ## 🎥 Demo  
-![ScreenRecording2025-01-28at11 29 18AM-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/9d3767ac-83a6-48e0-a820-936136641784)
+![ScreenRecording2025-02-02at6 14 48PM-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/01023e78-3dd4-4ae0-98cd-e812ecbe055b)
+
 
 ---
 
@@ -15,13 +16,13 @@ An AI-powered **drive-thru ordering system** that processes natural language ord
 ✅ **Live Application**  
 ✅ **Natural language order processing**  
 ✅ **Real-time order tracking**  
-✅ **Order cancellation support**  
-✅ **Interactive stats display**
-✅ **Multi-tenant architecture**
-✅ **User authentication & authorization**
-✅ **PostgreSQL database with migrations**
-✅ **Input validation & error handling**
-✅ **API documentation (Swagger UI on /docs)**
+✅ **Order cancellation support**
+✅ **Interactive stats display**  
+✅ **Multi-tenant architecture**  
+✅ **User authentication & authorization**  
+✅ **PostgreSQL database with migrations**  
+✅ **Input validation & error handling**  
+✅ **API documentation (Swagger UI on /docs)**  
 
 ## 🔒 Security Features
 - JWT-based authentication
