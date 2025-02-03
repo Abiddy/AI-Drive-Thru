@@ -194,7 +194,7 @@ async def process_request(request: UserRequest):
                     new_order = cur.fetchone()
                     conn.commit()
                     
-            return {"message": "Order of {new_order} placed successfully"}
+            return {"message": "Order placed successfully"}
             
         elif response["type"] == "cancel":
             order_number = response["order_number"]
